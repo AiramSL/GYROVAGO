@@ -25,7 +25,12 @@ import xarray as xr
 import pandas as pd
 from datetime import datetime
 
+from matplotlib.offsetbox import OffsetImage, AnnotationBbox
+import matplotlib.image as mpimg
+
 today = datetime.utcnow().strftime("%Y-%m-%d")
+
+img = mpimg.imread("figures/buoy.png")
 
 # -----------------------------
 # Login Copernicus
@@ -35,54 +40,13 @@ copernicusmarine.login(
     password=os.environ.get("COPERNICUS_PASSWORD")
 )
 
-#out_dir = "data/NC_copernicus"
-#os.makedirs(out_dir, exist_ok=True)
 
-# -----------------------------
-#  1️⃣  Serie temporal zooplankton, mnkc, NPP
-# -----------------------------
-ds_bgc = copernicusmarine.open_dataset(
-    dataset_id="cmems_mod_glo_bgc_my_0.083deg-lmtl_P1D-i",
-    variables=["zooc","npp","mnkc_epi"],
-    minimum_longitude=-15.2976,
-    maximum_longitude=-15.2976,
-    minimum_latitude=28.1617,
-    maximum_latitude=28.1617,
-    start_datetime="2020-01-01",
-    end_datetime=today
-)
-time = ds_bgc.time.values
-zooc = ds_bgc["zooc"].isel(latitude=0, longitude=0).values
-npp  = ds_bgc["npp"].isel(latitude=0, longitude=0).values
-mnkc = ds_bgc["mnkc_epi"].isel(latitude=0, longitude=0).values
-df = pd.DataFrame({
-    "Date": pd.to_datetime(time),
-    "Zooplankton (g/m²)": zooc,
-    "Epipelagic micronekton (g/m²)": mnkc,
-    "NPP (mg/m²/day)": npp
-})
+# Leer archivo
+df = pd.read_excel("data/coordenadas.xlsx")
 
-df.set_index("Date", inplace=True)
-
-fig, axes = plt.subplots(3,1, figsize=(10,12), sharex=True)
-axes[0].plot(df.index, df["Zooplankton (g/m²)"], marker='o'); axes[0].set_ylabel("Zooplankton [g/m²]"); axes[0].grid(True)
-axes[1].plot(df.index, df["Epipelagic micronekton (g/m²)"], marker='o', color='orange'); axes[1].set_ylabel("Micronekton [g/m²]"); axes[1].grid(True)
-axes[2].plot(df.index, df["NPP (mg/m²/day)"], marker='o', color='green'); axes[2].set_ylabel("NPP [mg/m²/day]"); axes[2].set_xlabel("Fecha"); axes[2].grid(True)
-plt.tight_layout()
-
-# -----------------------------
-# Guardar figura
-# -----------------------------
-
-out_path = "figures"
-os.makedirs(out_path, exist_ok=True)
-
-SERIE_path = os.path.join(out_path, "series_temporal_point.png")
-fig.savefig(SERIE_path, dpi=150, bbox_inches='tight')
-plt.close(fig)
-
-print("Serie temporal guardada como series_temporal_point.png")
-
+# Separar categorías
+ctd = df[df["Category"] == "CTD"]
+bio = df[df["Category"] == "BIO"]
 
 
 
@@ -92,10 +56,10 @@ print("Serie temporal guardada como series_temporal_point.png")
 ds_sst = copernicusmarine.open_dataset(
     dataset_id="cmems_mod_ibi_phy_anfc_0.027deg-3D_P1D-m",
     variables=["thetao"],
-    minimum_longitude=-16.5,
-    maximum_longitude=-13,
-    minimum_latitude=26.2,
-    maximum_latitude=29.5,
+    minimum_longitude=-23,
+    maximum_longitude=-5,
+    minimum_latitude=20,
+    maximum_latitude=40,
     start_datetime=today,
     end_datetime=today
 )
@@ -103,10 +67,10 @@ ds_sst = copernicusmarine.open_dataset(
 ds_cur = copernicusmarine.open_dataset(
     dataset_id="cmems_mod_ibi_phy_anfc_0.027deg-3D_P1D-m",
     variables=["uo","vo"],
-    minimum_longitude=-16.5,
-    maximum_longitude=-13,
-    minimum_latitude=26.2,
-    maximum_latitude=29.5,
+    minimum_longitude=-23,
+    maximum_longitude=-5,
+    minimum_latitude=20,
+    maximum_latitude=40,
     start_datetime=today,
     end_datetime=today
 )
@@ -119,40 +83,12 @@ lats = ds_sst["latitude"].values
 lon2d, lat2d = np.meshgrid(lons, lats)
 date_str = str(np.datetime_as_string(ds_sst.time.values[0], unit='D'))
 
-fig = plt.figure(figsize=(8,6))
-ax = plt.axes(projection=ccrs.PlateCarree())
-ax.set_extent([-16.5, -13, 26.2, 29.5], crs=ccrs.PlateCarree())
-pcm = ax.pcolormesh(lon2d, lat2d, sst.values, cmap='turbo', shading='auto', transform=ccrs.PlateCarree())
-step = 4
-q = ax.quiver(lon2d[::step,::step], lat2d[::step,::step],
-              uo.values[::step,::step], vo.values[::step,::step],
-              scale=1, scale_units='inches', width=0.0025, color='black',
-              transform=ccrs.PlateCarree())
-ax.quiverkey(q, 0.88, 0.04, 0.5, "0.5 m/s", labelpos='E', coordinates='axes', fontproperties={'size':10})
-ax.add_feature(cfeature.LAND.with_scale('10m'), facecolor='lightgrey')
-ax.add_feature(cfeature.COASTLINE.with_scale('10m'), linewidth=1.2)
-gl = ax.gridlines(draw_labels=True, linewidth=0)
-gl.top_labels = False
-gl.right_labels = False
-gl.left_labels = True
-gl.bottom_labels = True
-
-ax.set_title(f"SST + Surface Currents – {date_str}", fontsize=14)
-cbar = plt.colorbar(pcm, orientation='vertical', pad=0.02, aspect=25)
-cbar.set_label("Sea Surface Temperature (°C)", fontsize=12)
-plt.tight_layout()
-
 
 # -----------------------------
 # Guardar figura
 # -----------------------------
-
-
-latest_path = os.path.join(out_path, "latest.png")
-fig.savefig(latest_path, dpi=150, bbox_inches='tight')
-plt.close(fig)
-
-print("Figura guardada como latest.png")
+out_path = "figures"
+os.makedirs(out_path, exist_ok=True)
 
 
 # -----------------------------
@@ -161,10 +97,10 @@ print("Figura guardada como latest.png")
 ds_SSH = copernicusmarine.open_dataset(
     dataset_id="cmems_mod_ibi_phy-ssh_anfc_detided-0.027deg_P1D-m",
     variables=["zos_detided"],
-    minimum_longitude=-16.5,
-    maximum_longitude=-13,
-    minimum_latitude=26.2,
-    maximum_latitude=29.5,
+    minimum_longitude=-23,
+    maximum_longitude=-5,
+    minimum_latitude=20,
+    maximum_latitude=40,
     start_datetime=today,
     end_datetime=today
 )
@@ -187,10 +123,10 @@ vgeo = 9.81/f*dssh_dx
 
 fig = plt.figure(figsize=(8,6))
 ax = plt.axes(projection=ccrs.PlateCarree())
-ax.set_extent([-16.5,-13,26.2,29.5], crs=ccrs.PlateCarree())
+ax.set_extent([-19, -5, 26.5, 40], crs=ccrs.PlateCarree())
 pcm = ax.pcolormesh(lon2d, lat2d, ds_sst["thetao"].isel(time=0, depth=0).values,
                     cmap='turbo', shading='auto', transform=ccrs.PlateCarree())
-step = 4
+step = 10
 q = ax.quiver(lon2d[::step,::step], lat2d[::step,::step], ugeo[::step,::step], vgeo[::step,::step],
               scale=1, scale_units='inches', width=0.0025, color='black', transform=ccrs.PlateCarree())
 ax.quiverkey(q, 0.88, 0.04, 0.5, "0.5 m/s", labelpos='E', coordinates='axes', fontproperties={'size':10})
@@ -203,6 +139,48 @@ gl.left_labels = True
 gl.bottom_labels = True
 plt.title(f"SST + Geostrophic Currents – {date_str}")
 plt.colorbar(pcm, label="SST [°C]")
+
+# Definir estilos para las categorías
+categories = {
+    "CTD": {"color": "red", "facecolors": "red", "marker": "o", "s": 60, "edgecolor": "black"},
+    "BIO": {"color": "green", "facecolors": "none", "marker": "D", "s": 80, "linewidth": 2}
+}
+
+# Dibujar todas las estaciones
+for cat, style in categories.items():
+    df_cat = df[df["Category"] == cat]
+    ax.scatter(
+        df_cat["Longitude"], df_cat["Latitude"],
+        transform=ccrs.PlateCarree(),
+        label=f"{cat} stations",
+        **style
+    )
+
+ax.legend(loc="upper right", fontsize=10, frameon=True)
+
+# Coordenadas de la boya y de la primera estación
+lon_estoc, lat_estoc = -16.3, 30.5
+lon_station1, lat_station1 = -15.5, 29.167
+
+# Insertar imagen de la boya
+ab = AnnotationBbox(
+    OffsetImage(img, zoom=0.04),
+    (lon_estoc, lat_estoc),
+    frameon=False,
+    transform=ccrs.PlateCarree(),
+    zorder=15
+)
+ax.add_artist(ab)
+
+# Flecha hacia la estación 1
+ax.annotate(
+    "",
+    xy=(lon_station1, lat_station1),
+    xytext=(lon_estoc, lat_estoc),
+    arrowprops=dict(arrowstyle="->", color="black", linewidth=1.5),
+    transform=ccrs.PlateCarree(),
+    zorder=10
+)
 plt.tight_layout()
 
 
@@ -225,10 +203,10 @@ print("Figura guardada como SSTgeo.png")
 ds_CHL = copernicusmarine.open_dataset(
     dataset_id="cmems_obs-oc_atl_bgc-plankton_my_l4-gapfree-multi-1km_P1D",
     variables=["CHL"],
-    minimum_longitude=-16.5,
-    maximum_longitude=-13,
-    minimum_latitude=26.2,
-    maximum_latitude=29.5,
+    minimum_longitude=-19,
+    maximum_longitude=-5,
+    minimum_latitude=26.5,
+    maximum_latitude=40,
     start_datetime="2026-02-16",
     end_datetime=today
 )
@@ -267,19 +245,6 @@ vgeo_da = xr.DataArray(vgeo, coords=[ds_sst.latitude, ds_sst.longitude], dims=["
 ugeo_interp = ugeo_da.interp(latitude=lats_chl, longitude=lons_chl)
 vgeo_interp = vgeo_da.interp(latitude=lats_chl, longitude=lons_chl)
 
-# Quiver
-step = 10  # submuestreo para no saturar flechas
-q = ax.quiver(
-    lon2d_chl[::step, ::step],
-    lat2d_chl[::step, ::step],
-    ugeo_interp.values[::step, ::step],
-    vgeo_interp.values[::step, ::step],
-    scale=1, scale_units='inches', width=0.0025, color='black',
-    transform=ccrs.PlateCarree()
-)
-
-ax.quiverkey(q, 0.88, 0.04, 0.5, "0.5 m/s", labelpos='E', coordinates='axes', fontproperties={'size':10})
-
 # Añadir costa y tierra
 ax.add_feature(cfeature.LAND.with_scale('10m'), facecolor='lightgrey')
 ax.add_feature(cfeature.COASTLINE.with_scale('10m'), linewidth=1.2)
@@ -292,10 +257,52 @@ gl.left_labels = True
 gl.bottom_labels = True
 
 # Título
-ax.set_title(f"Chlorophyll + Geostrophic Currents – {last_date_chl.strftime('%Y-%m-%d')}")
+ax.set_title(f"Chlorophyll – a {last_date_chl.strftime('%Y-%m-%d')}")
 
 # Colorbar
 cbar = plt.colorbar(pcm, label="Chlorophyll [mg/m³]")
+
+# Definir estilos para las categorías
+categories = {
+    "CTD": {"color": "red", "facecolors": "red", "marker": "o", "s": 60, "edgecolor": "black"},
+    "BIO": {"color": "green", "facecolors": "none", "marker": "D", "s": 80, "linewidth": 2}
+}
+
+# Dibujar todas las estaciones
+for cat, style in categories.items():
+    df_cat = df[df["Category"] == cat]
+    ax.scatter(
+        df_cat["Longitude"], df_cat["Latitude"],
+        transform=ccrs.PlateCarree(),
+        label=f"{cat} stations",
+        **style
+    )
+
+ax.legend(loc="upper right", fontsize=10, frameon=True)
+
+# Coordenadas de la boya y de la primera estación
+lon_estoc, lat_estoc = -16.3, 30.5
+lon_station1, lat_station1 = -15.5, 29.167
+
+# Insertar imagen de la boya
+ab = AnnotationBbox(
+    OffsetImage(img, zoom=0.04),
+    (lon_estoc, lat_estoc),
+    frameon=False,
+    transform=ccrs.PlateCarree(),
+    zorder=15
+)
+ax.add_artist(ab)
+
+# Flecha hacia la estación 1
+ax.annotate(
+    "",
+    xy=(lon_station1, lat_station1),
+    xytext=(lon_estoc, lat_estoc),
+    arrowprops=dict(arrowstyle="->", color="black", linewidth=1.5),
+    transform=ccrs.PlateCarree(),
+    zorder=10
+)
 
 plt.tight_layout()
 
@@ -322,10 +329,10 @@ print("Figura guardada como CHLgeo.png")
 ds_SSH = copernicusmarine.open_dataset(
     dataset_id="cmems_mod_ibi_phy-ssh_anfc_detided-0.027deg_P1D-m",
     variables=["zos_detided"],
-    minimum_longitude=-16.5,
-    maximum_longitude=-13,
-    minimum_latitude=26.2,
-    maximum_latitude=29.5,
+    minimum_longitude=-19,
+    maximum_longitude=-5,
+    minimum_latitude=26.5,
+    maximum_latitude=40,
     start_datetime=today,
     end_datetime=today
 )
@@ -360,7 +367,7 @@ pcm = ax.pcolormesh(
 )
 
 # Flechas geostróficas
-step = 4  # ajustar según densidad de flechas
+step = 10  # ajustar según densidad de flechas
 q = ax.quiver(
     lon2d_ssh[::step, ::step], lat2d_ssh[::step, ::step],
     ugeo_interp.values[::step, ::step], vgeo_interp.values[::step, ::step],
@@ -388,6 +395,48 @@ ax.set_title(f"SSH + Geostrophic Flow – {date_str}", fontsize=14)
 cbar = plt.colorbar(pcm, orientation='vertical', pad=0.02, aspect=25)
 cbar.set_label("Sea Surface Height [m]", fontsize=12)
 
+# Definir estilos para las categorías
+categories = {
+    "CTD": {"color": "red", "facecolors": "red", "marker": "o", "s": 60, "edgecolor": "black"},
+    "BIO": {"color": "green", "facecolors": "none", "marker": "D", "s": 80, "linewidth": 2}
+}
+
+# Dibujar todas las estaciones
+for cat, style in categories.items():
+    df_cat = df[df["Category"] == cat]
+    ax.scatter(
+        df_cat["Longitude"], df_cat["Latitude"],
+        transform=ccrs.PlateCarree(),
+        label=f"{cat} stations",
+        **style
+    )
+
+ax.legend(loc="upper right", fontsize=10, frameon=True)
+
+# Coordenadas de la boya y de la primera estación
+lon_estoc, lat_estoc = -16.3, 30.5
+lon_station1, lat_station1 = -15.5, 29.167
+
+# Insertar imagen de la boya
+ab = AnnotationBbox(
+    OffsetImage(img, zoom=0.04),
+    (lon_estoc, lat_estoc),
+    frameon=False,
+    transform=ccrs.PlateCarree(),
+    zorder=15
+)
+ax.add_artist(ab)
+
+# Flecha hacia la estación 1
+ax.annotate(
+    "",
+    xy=(lon_station1, lat_station1),
+    xytext=(lon_estoc, lat_estoc),
+    arrowprops=dict(arrowstyle="->", color="black", linewidth=1.5),
+    transform=ccrs.PlateCarree(),
+    zorder=10
+)
+
 plt.tight_layout()
 
 
@@ -400,6 +449,16 @@ fig.savefig(SSHgeo_path, dpi=150, bbox_inches='tight')
 plt.close(fig)
 
 print("Figura guardada como SSHgeo.png")
+
+# -----------------------------
+# Guardar figura
+# -----------------------------
+
+
+
+
+
+
 
 
 
