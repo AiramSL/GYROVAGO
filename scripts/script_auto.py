@@ -23,12 +23,13 @@ import cartopy.feature as cfeature
 from matplotlib.ticker import MaxNLocator
 import xarray as xr
 import pandas as pd
-from datetime import datetime
+from datetime import datetime, timezone
 
 from matplotlib.offsetbox import OffsetImage, AnnotationBbox
 import matplotlib.image as mpimg
 
-today = datetime.utcnow().strftime("%Y-%m-%d")
+today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+
 
 img = mpimg.imread("figures/buoy.png")
 
