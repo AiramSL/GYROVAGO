@@ -557,15 +557,7 @@ plt.show()
 
 
 
-from scipy.interpolate import interp1d
-import numpy as np
 
-# X[0, :] es el eje horizontal de tu sección
-xi = X[0, :]  # eje horizontal de la sección
-
-# Interpolamos la batimetría (bathy_line) a los puntos de X
-f_bathy = interp1d(np.linspace(0, 16, len(bathy_line)), bathy_line, kind='linear')
-bathy_line_plot = f_bathy(xi)
 
 
 #############################################
@@ -633,6 +625,18 @@ x = np.arange(len(lats_st))  # eje horizontal (transecto)
 X_data, Z_data = np.meshgrid(x, depths)
 
 mask = ~np.isnan(T)
+
+
+
+from scipy.interpolate import interp1d
+import numpy as np
+
+# X[0, :] es el eje horizontal de tu sección
+xi = X[0, :]  # eje horizontal de la sección
+
+# Interpolamos la batimetría (bathy_line) a los puntos de X
+f_bathy = interp1d(np.linspace(0, 16, len(bathy_line)), bathy_line, kind='linear')
+bathy_line_plot = f_bathy(xi)
 
 #### figura
 
