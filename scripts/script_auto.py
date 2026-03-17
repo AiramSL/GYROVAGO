@@ -31,6 +31,8 @@ import matplotlib.image as mpimg
 today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
 
 
+img = mpimg.imread("/Users/airamsarmiento/Documents/paginasWEB/GYROVAGO_webpy/figures/buoy.png")
+
 img = mpimg.imread("figures/buoy.png")
 
 # -----------------------------
@@ -458,373 +460,10 @@ print("Figura guardada como SSHgeo.png")
 
 
 
-####################################################################
+#################################################################### Secciones
 
 
-##### secciones verticales
-from scipy.interpolate import RegularGridInterpolator, interp1d
-import numpy as np
-import matplotlib.pyplot as plt
-
-
-
-# Limitar a 0-6000 m de profundidad
-ds_sst = ds_sst.sel(depth=slice(0, 6000))
-
-
-# Ordenar estaciones por latitud para la sección
-df = ctd.sort_values("Latitude")
-lons_st = df["Longitude"].values
-lats_st = df["Latitude"].values
-names_st = df["Station"].values
-
-# --- Extraer perfiles de temperatura a lo largo de la sección ---
-# Para simplificar: tomar la columna más cercana a cada estación
-
-###### Temperature
-
-thetao_profiles = ds_sst["thetao"].sel(
-    longitude=xr.DataArray(lons_st, dims="station"),
-    latitude=xr.DataArray(lats_st, dims="station"),
-    method="nearest"
-)
-
-depths = ds_sst["depth"].values
-
-T = thetao_profiles.values  # (depth, station) o (time, depth, station)
-
-T = T.squeeze()  # ahora T.shape será (50, 24)
-print(T.shape)   # (50, 24)
-
-# Crear interpolador
-
-# --- Interpolador para suavizado ---
-interp_func = RegularGridInterpolator(
-    (depths, np.arange(len(names_st))),  # (profundidad, estación)
-    T,
-    method='linear',  # cambiar a 'cubic' si quieres más suavizado
-    bounds_error=False,
-    fill_value=np.nan
-)
-
-# --- Grilla fina ---
-x_fine = np.linspace(0, len(names_st)-1, 200)  # subpuntos entre estaciones
-z_fine = np.linspace(depths.min(), depths.max(), 200)  # más puntos en profundidad
-Z, X = np.meshgrid(z_fine, x_fine, indexing='ij')
-
-# --- Interpolación ---
-T_smooth = interp_func(np.array([Z.ravel(), X.ravel()]).T).reshape(Z.shape)
-
-
-x = np.arange(len(lats_st))  # eje horizontal (transecto)
-
-
-
-#####################################
-##### Salinidad
-
-# --- Abrir dataset de salinidad (salinity = "so" o "sosaline" según producto) ---
-ds_salt = copernicusmarine.open_dataset(
-    dataset_id="cmems_mod_ibi_phy_anfc_0.027deg-3D_P1D-m",
-    variables=["so"],  # salinidad
-    minimum_longitude=-23,
-    maximum_longitude=-5,
-    minimum_latitude=20,
-    maximum_latitude=40,
-    start_datetime=today,
-    end_datetime=today
-)
-
-# Limitar a 0-6000 m de profundidad
-ds_salt = ds_salt.sel(depth=slice(0, 6000))
-
-# Ordenar estaciones por latitud para la sección
-df = ctd.sort_values("Latitude")
-lons_st = df["Longitude"].values
-lats_st = df["Latitude"].values
-names_st = df["Station"].values
-
-# --- Extraer perfiles de salinidad a lo largo de la sección ---
-salt_profiles = ds_salt["so"].sel(
-    longitude=xr.DataArray(lons_st, dims="station"),
-    latitude=xr.DataArray(lats_st, dims="station"),
-    method="nearest"
-)
-
-depths = ds_salt["depth"].values
-
-S = salt_profiles.values  # (depth, station) o (time, depth, station)
-S = S.squeeze()           # ahora S.shape será (profundidad, estaciones)
-print(S.shape)            # por ejemplo (50, 24)
-
-# --- Crear interpolador ---
-interp_func_s = RegularGridInterpolator(
-    (depths, np.arange(len(names_st))),  # (profundidad, estación)
-    S,
-    method='linear',                     # 'cubic' para más suavizado
-    bounds_error=False,
-    fill_value=np.nan
-)
-
-# --- Crear grilla fina ---
-x_fine = np.linspace(0, len(names_st)-1, 200)     # subpuntos entre estaciones
-z_fine = np.linspace(depths.min(), depths.max(), 200)  # más puntos en profundidad
-Z, X = np.meshgrid(z_fine, x_fine, indexing='ij')
-
-# --- Interpolación ---
-S_smooth = interp_func_s(np.array([Z.ravel(), X.ravel()]).T).reshape(Z.shape)
-
-x = np.arange(len(lats_st))  # eje horizontal (transecto)
-
-
-##### Oxygen
-ds_ox = copernicusmarine.open_dataset(
-    dataset_id="cmems_mod_ibi_bgc_anfc_0.027deg-3D_P1D-m",  # IBI region, daily
-    variables=["o2"],  # variable de oxígeno disuelto
-    minimum_longitude=-23,
-    maximum_longitude=-5,
-    minimum_latitude=20,
-    maximum_latitude=40,
-    start_datetime=today,
-    end_datetime=today
-)
-
-
-
-# Limitar a 0-6000 m
-ds_ox = ds_ox.sel(depth=slice(0, 6000))
-
-
-
-ox_profiles = []
-
-for lon, lat in zip(lons_st, lats_st):
-    prof = ds_ox["o2"].sel(longitude=lon, latitude=lat, method="nearest")
-    # Eliminar dimensiones de tamaño 1 (por ejemplo time)
-    prof = prof.squeeze()
-    ox_profiles.append(prof.values)
-
-# Convertir a array (profundidad, estaciones)
-ox_profiles = np.stack(ox_profiles, axis=-1)  # ahora shape = (n_depth, n_stations)
-print("Shape ox_profiles:", ox_profiles.shape)  # debería ser (50, 17)
-
-depths = ds_ox["depth"].values
-
-# ----------------------------------------
-# Crear interpolador para suavizado
-# ----------------------------------------
-interp_func = RegularGridInterpolator(
-    (depths, np.arange(len(names_st))),  # ejes: profundidad, estaciones
-    ox_profiles,
-    method='linear',  # o 'cubic' si quieres más suavizado
-    bounds_error=False,
-    fill_value=np.nan
-)
-
-# ----------------------------------------
-# Crear grilla fina
-# ----------------------------------------
-x_fine = np.linspace(0, len(names_st)-1, 200)       # subpuntos entre estaciones
-z_fine = np.linspace(depths.min(), depths.max(), 200)  # más puntos en profundidad
-Z, X = np.meshgrid(z_fine, x_fine, indexing='ij')
-
-# ----------------------------------------
-# Interpolación sobre la grilla fina
-# ----------------------------------------
-Ox_smooth = interp_func(np.array([Z.ravel(), X.ravel()]).T).reshape(Z.shape)
-
-print("Shape Ox_smooth:", Ox_smooth.shape)  # (200, 200)
-
-###--------------------
-
-
-
-##### clorofila
-
-
-ds_chl = copernicusmarine.open_dataset(
-    dataset_id="cmems_mod_ibi_bgc_anfc_0.027deg-3D_P1D-m",  # IBI region, daily
-    variables=["chl"],  # variable de oxígeno disuelto
-    minimum_longitude=-23,
-    maximum_longitude=-5,
-    minimum_latitude=20,
-    maximum_latitude=40,
-    start_datetime=today,
-    end_datetime=today
-)
-
-
-
-# Limitar a 0-6000 m
-ds_chl = ds_chl.sel(depth=slice(0, 6000))
-
-CHL_profiles = []
-for lon, lat in zip(lons_st, lats_st):
-    prof = ds_chl["chl"].sel(longitude=lon, latitude=lat, method="nearest")
-    CHL_profiles.append(prof.values)
-
-CHL_profiles = np.array(CHL_profiles)  # shape: (n_stations, n_depth)
-depths = ds_chl["depth"].values
-
-CHL = CHL_profiles.squeeze()  # quitar dimensiones extra si las hay
-print("Shape CHL:", CHL.shape)
-
-# ------------------------
-# 2️⃣ Interpolador para suavizado
-# ------------------------
-interp_func = RegularGridInterpolator(
-    (depths, np.arange(len(names_st))),  # (profundidad, estación)
-    CHL.T,  # transponer para que quede (depth, station)
-    method='linear',
-    bounds_error=False,
-    fill_value=np.nan
-)
-
-# --- 3️⃣ Grilla fina para suavizar ---
-x_fine = np.linspace(0, len(names_st)-1, 200)
-z_fine = np.linspace(depths.min(), depths.max(), 200)
-Z, X = np.meshgrid(z_fine, x_fine, indexing='ij')
-
-# --- 4️⃣ Interpolación ---
-CHL_smooth = interp_func(np.array([Z.ravel(), X.ravel()]).T).reshape(Z.shape)
-
-###--------------------
-
-
-## bathymetri 
-
-import xarray as xr
-
-
-
-# opcion segura
-
-bathy = copernicusmarine.open_dataset(
-    dataset_id="cmems_mod_glo_phy_my_0.083deg_static",
-    variables=["deptho"],
-    minimum_longitude=-20,
-    maximum_longitude=-5,
-    minimum_latitude=26,
-    maximum_latitude=42
-)
-
-
-import numpy as np
-
-# puntos de inicio y fin
-lon_start, lat_start = -19.981, 26.487
-lon_end, lat_end     = -5.011, 41.947
-
-# número de puntos a muestrear en el transecto
-n_points = 30
-
-# crear arrays de coordenadas lineales
-lons_transect = np.linspace(lon_start, lon_end, n_points)
-lats_transect = np.linspace(lat_start, lat_end, n_points)
-
-bathy_section = []
-
-for lon, lat in zip(lons_transect, lats_transect):
-    val = bathy["deptho"].sel(longitude=lon, latitude=lat, method="nearest")
-    bathy_section.append(val.values)
-
-bathy_line = np.array(bathy_section)
-
-bathy_line_plot = np.copy(bathy_line)
-bathy_line_plot = np.nan_to_num(bathy_line_plot, nan=2000)  # reemplazar nan
-bathy_line_plot[bathy_line_plot > 2000] = 2000 
-
-
-import numpy as np
-import matplotlib.pyplot as plt
-from scipy.interpolate import griddata
-
-# ----------------------------------
-# 1️⃣ Extraer temperatura en transecto
-# ----------------------------------
-theta_section = []
-
-for lon, lat in zip(lons_transect, lats_transect):
-    prof = ds_sst["thetao"].sel(longitude=lon, latitude=lat, method="nearest")
-    theta_section.append(prof.values)
-
-theta_section = np.array(theta_section)  # (n_points, n_depth)
-depths = ds_sst["depth"].values
-
-# ----------------------------------
-# 2️⃣ Preparar grilla para interpolación
-# ----------------------------------
-x = np.arange(len(lons_transect))  # eje horizontal (transecto)
-z = depths
-
-# Malla fina
-xi = np.linspace(x.min(), x.max(), 400)
-zi = np.linspace(0, 2000, 400)  # límite profundidad (ajusta)
-XI, ZI = np.meshgrid(xi, zi)
-
-# ----------------------------------
-# 3️⃣ Interpolación (MUCHO mejor que RGI)
-# ----------------------------------
-X_pts, Z_pts = np.meshgrid(x, z)
-points = np.array([X_pts.flatten(), Z_pts.flatten()]).T
-values = theta_section.T.flatten()
-
-# Interpolación híbrida
-VI_lin = griddata(points, values, (XI, ZI), method="linear")
-VI_near = griddata(points, values, (XI, ZI), method="nearest")
-
-VI = VI_lin.copy()
-VI[np.isnan(VI)] = VI_near[np.isnan(VI)]
-
-# ----------------------------------
-# 4️⃣ Interpolar batimetría al mismo eje
-# ----------------------------------
-from scipy.interpolate import interp1d
-
-bathy_interp = interp1d(
-    np.linspace(0, len(bathy_line)-1, len(bathy_line)),
-    bathy_line,
-    kind="linear",
-    bounds_error=False,
-    fill_value="extrapolate"
-)
-
-bathy_fine = bathy_interp(xi)
-
-# ----------------------------------
-# 5️⃣ Enmascarar debajo del fondo
-# ----------------------------------
-for i in range(len(xi)):
-    VI[ZI[:, i] > bathy_fine[i], i] = np.nan
-    
-    
-    
-    
-import numpy as np
-from scipy.interpolate import griddata
-import matplotlib.pyplot as plt
-from matplotlib.ticker import FuncFormatter
-import cmocean
-import matplotlib.colors as mcolors
-
-# ----------------------------------
-# 6️⃣ PLOT ESTILO PAPER
-# ----------------------------------
-
-# ----------------------------------
-# 6️⃣ PUNTOS DE MUESTREO
-# ----------------------------------
-
-# Crear malla de estaciones vs profundidad
-X_data, Z_data = np.meshgrid(x, depths)
-
-# Máscara de datos válidos
-mask = ~np.isnan(T)
-
-
-
-
-##########################################################bathymetri
+##########################################################bathymetria
 
 import copernicusmarine
 bathy = copernicusmarine.open_dataset(
@@ -931,6 +570,73 @@ f_bathy = interp1d(np.linspace(0, 16, len(bathy_line)), bathy_line, kind='linear
 bathy_line_plot = f_bathy(xi)
 
 
+#############################################
+
+
+##### secciones verticales Temperatura
+
+from scipy.interpolate import RegularGridInterpolator, interp1d
+import numpy as np
+import matplotlib.pyplot as plt
+
+
+
+# Limitar a 0-6000 m de profundidad
+ds_sst = ds_sst.sel(depth=slice(0, 6000))
+
+
+# Ordenar estaciones por latitud para la sección
+df = ctd.sort_values("Latitude")
+lons_st = df["Longitude"].values
+lats_st = df["Latitude"].values
+names_st = df["Station"].values
+
+# --- Extraer perfiles de temperatura a lo largo de la sección ---
+# Para simplificar: tomar la columna más cercana a cada estación
+
+###### Temperature
+
+thetao_profiles = ds_sst["thetao"].sel(
+    longitude=xr.DataArray(lons_st, dims="station"),
+    latitude=xr.DataArray(lats_st, dims="station"),
+    method="nearest"
+)
+
+depths = ds_sst["depth"].values
+
+T = thetao_profiles.values  # (depth, station) o (time, depth, station)
+
+T = T.squeeze()  # ahora T.shape será (50, 24)
+print(T.shape)   # (50, 24)
+
+# Crear interpolador
+
+# --- Interpolador para suavizado ---
+interp_func = RegularGridInterpolator(
+    (depths, np.arange(len(names_st))),  # (profundidad, estación)
+    T,
+    method='linear',  # cambiar a 'cubic' si quieres más suavizado
+    bounds_error=False,
+    fill_value=np.nan
+)
+
+# --- Grilla fina ---
+x_fine = np.linspace(0, len(names_st)-1, 200)  # subpuntos entre estaciones
+z_fine = np.linspace(depths.min(), depths.max(), 200)  # más puntos en profundidad
+Z, X = np.meshgrid(z_fine, x_fine, indexing='ij')
+
+# --- Interpolación ---
+T_smooth = interp_func(np.array([Z.ravel(), X.ravel()]).T).reshape(Z.shape)
+
+
+x = np.arange(len(lats_st))  # eje horizontal (transecto)
+
+
+X_data, Z_data = np.meshgrid(x, depths)
+
+mask = ~np.isnan(T)
+
+#### figura
 
 ###############################################
 
@@ -953,7 +659,7 @@ for i in range(T_ext.shape[1]):
     
     
 
-
+import cmocean
 
 fig, ax = plt.subplots(figsize=(20, 12), constrained_layout=True)
 
@@ -1041,11 +747,74 @@ TSec_path = os.path.join(out_path, "TSec.png")
 fig.savefig(TSec_path, dpi=150, bbox_inches='tight')
 plt.close(fig)
 
-print("Figura guardada como CHLgeo.png")
 
 
-##### Salinity
 
+
+
+
+
+
+
+
+#####################################
+##### Salinidad
+
+# --- Abrir dataset de salinidad (salinity = "so" o "sosaline" según producto) ---
+ds_salt = copernicusmarine.open_dataset(
+    dataset_id="cmems_mod_ibi_phy_anfc_0.027deg-3D_P1D-m",
+    variables=["so"],  # salinidad
+    minimum_longitude=-23,
+    maximum_longitude=-5,
+    minimum_latitude=20,
+    maximum_latitude=40,
+    start_datetime=today,
+    end_datetime=today
+)
+
+# Limitar a 0-6000 m de profundidad
+ds_salt = ds_salt.sel(depth=slice(0, 6000))
+
+# Ordenar estaciones por latitud para la sección
+df = ctd.sort_values("Latitude")
+lons_st = df["Longitude"].values
+lats_st = df["Latitude"].values
+names_st = df["Station"].values
+
+# --- Extraer perfiles de salinidad a lo largo de la sección ---
+salt_profiles = ds_salt["so"].sel(
+    longitude=xr.DataArray(lons_st, dims="station"),
+    latitude=xr.DataArray(lats_st, dims="station"),
+    method="nearest"
+)
+
+depths = ds_salt["depth"].values
+
+S = salt_profiles.values  # (depth, station) o (time, depth, station)
+S = S.squeeze()           # ahora S.shape será (profundidad, estaciones)
+print(S.shape)            # por ejemplo (50, 24)
+
+# --- Crear interpolador ---
+interp_func_s = RegularGridInterpolator(
+    (depths, np.arange(len(names_st))),  # (profundidad, estación)
+    S,
+    method='linear',                     # 'cubic' para más suavizado
+    bounds_error=False,
+    fill_value=np.nan
+)
+
+# --- Crear grilla fina ---
+x_fine = np.linspace(0, len(names_st)-1, 200)     # subpuntos entre estaciones
+z_fine = np.linspace(depths.min(), depths.max(), 200)  # más puntos en profundidad
+Z, X = np.meshgrid(z_fine, x_fine, indexing='ij')
+
+# --- Interpolación ---
+S_smooth = interp_func_s(np.array([Z.ravel(), X.ravel()]).T).reshape(Z.shape)
+
+x = np.arange(len(lats_st))  # eje horizontal (transecto)
+
+
+##### Figura
 
 S_ext = S_smooth.copy()
 Z_max = 6000
@@ -1132,6 +901,74 @@ fig.savefig(Ssec_path, dpi=150, bbox_inches='tight')
 plt.close(fig)
 
 print("Figura guardada como Ssec.png")
+
+
+
+
+
+
+
+
+
+##### Oxygen
+ds_ox = copernicusmarine.open_dataset(
+    dataset_id="cmems_mod_ibi_bgc_anfc_0.027deg-3D_P1D-m",  # IBI region, daily
+    variables=["o2"],  # variable de oxígeno disuelto
+    minimum_longitude=-23,
+    maximum_longitude=-5,
+    minimum_latitude=20,
+    maximum_latitude=40,
+    start_datetime=today,
+    end_datetime=today
+)
+
+
+
+# Limitar a 0-6000 m
+ds_ox = ds_ox.sel(depth=slice(0, 6000))
+
+
+
+ox_profiles = []
+
+for lon, lat in zip(lons_st, lats_st):
+    prof = ds_ox["o2"].sel(longitude=lon, latitude=lat, method="nearest")
+    # Eliminar dimensiones de tamaño 1 (por ejemplo time)
+    prof = prof.squeeze()
+    ox_profiles.append(prof.values)
+
+# Convertir a array (profundidad, estaciones)
+ox_profiles = np.stack(ox_profiles, axis=-1)  # ahora shape = (n_depth, n_stations)
+print("Shape ox_profiles:", ox_profiles.shape)  # debería ser (50, 17)
+
+depths = ds_ox["depth"].values
+
+# ----------------------------------------
+# Crear interpolador para suavizado
+# ----------------------------------------
+interp_func = RegularGridInterpolator(
+    (depths, np.arange(len(names_st))),  # ejes: profundidad, estaciones
+    ox_profiles,
+    method='linear',  # o 'cubic' si quieres más suavizado
+    bounds_error=False,
+    fill_value=np.nan
+)
+
+# ----------------------------------------
+# Crear grilla fina
+# ----------------------------------------
+x_fine = np.linspace(0, len(names_st)-1, 200)       # subpuntos entre estaciones
+z_fine = np.linspace(depths.min(), depths.max(), 200)  # más puntos en profundidad
+Z, X = np.meshgrid(z_fine, x_fine, indexing='ij')
+
+# ----------------------------------------
+# Interpolación sobre la grilla fina
+# ----------------------------------------
+Ox_smooth = interp_func(np.array([Z.ravel(), X.ravel()]).T).reshape(Z.shape)
+
+print("Shape Ox_smooth:", Ox_smooth.shape)  # (200, 200)
+
+###-------------------- Figura
 
 
 ######## Oxygen
@@ -1234,7 +1071,63 @@ plt.close(fig)
 print("Figura guardada como O2sec.png")
 
 
+
+
+
+
 ##### clorofila
+
+
+ds_chl = copernicusmarine.open_dataset(
+    dataset_id="cmems_mod_ibi_bgc_anfc_0.027deg-3D_P1D-m",  # IBI region, daily
+    variables=["chl"],  # variable de oxígeno disuelto
+    minimum_longitude=-23,
+    maximum_longitude=-5,
+    minimum_latitude=20,
+    maximum_latitude=40,
+    start_datetime=today,
+    end_datetime=today
+)
+
+
+
+# Limitar a 0-6000 m
+ds_chl = ds_chl.sel(depth=slice(0, 6000))
+
+CHL_profiles = []
+for lon, lat in zip(lons_st, lats_st):
+    prof = ds_chl["chl"].sel(longitude=lon, latitude=lat, method="nearest")
+    CHL_profiles.append(prof.values)
+
+CHL_profiles = np.array(CHL_profiles)  # shape: (n_stations, n_depth)
+depths = ds_chl["depth"].values
+
+CHL = CHL_profiles.squeeze()  # quitar dimensiones extra si las hay
+print("Shape CHL:", CHL.shape)
+
+# ------------------------
+# 2️⃣ Interpolador para suavizado
+# ------------------------
+interp_func = RegularGridInterpolator(
+    (depths, np.arange(len(names_st))),  # (profundidad, estación)
+    CHL.T,  # transponer para que quede (depth, station)
+    method='linear',
+    bounds_error=False,
+    fill_value=np.nan
+)
+
+# --- 3️⃣ Grilla fina para suavizar ---
+x_fine = np.linspace(0, len(names_st)-1, 200)
+z_fine = np.linspace(depths.min(), depths.max(), 200)
+Z, X = np.meshgrid(z_fine, x_fine, indexing='ij')
+
+# --- 4️⃣ Interpolación ---
+CHL_smooth = interp_func(np.array([Z.ravel(), X.ravel()]).T).reshape(Z.shape)
+
+###--------------------
+
+
+##### figura clorofila
 
 CHL_ext = CHL_smooth.copy()
 Z_max = 6000
