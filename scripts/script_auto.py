@@ -201,16 +201,19 @@ print("Figura guardada como SSTgeo.png")
 # -----------------------------
 # 4️⃣ CHL + flujo geostrófico
 # -----------------------------
+from matplotlib.colors import LogNorm
+
 ds_CHL = copernicusmarine.open_dataset(
-    dataset_id="cmems_obs-oc_atl_bgc-plankton_my_l4-gapfree-multi-1km_P1D",
-    variables=["CHL"],
+    dataset_id="cmems_mod_ibi_bgc_anfc_0.027deg-3D_P1D-m",  # IBI region, daily
+    variables=["chl"],  # variable de oxígeno disuelto
     minimum_longitude=-19,
     maximum_longitude=-5,
     minimum_latitude=26.5,
     maximum_latitude=40,
-    start_datetime="2026-02-16",
+    start_datetime=today,
     end_datetime=today
 )
+
 time_chl = pd.to_datetime(ds_CHL.time.values)
 last_date_chl = time_chl.max()
 ds_CHL_day = ds_CHL.sel(time=last_date_chl)
@@ -218,7 +221,11 @@ lons_chl = ds_CHL_day["longitude"].values
 lats_chl = ds_CHL_day["latitude"].values
 lon2d_chl, lat2d_chl = np.meshgrid(lons_chl, lats_chl)
 
-chl = ds_CHL_day["CHL"].values
+chl = ds_CHL_day["chl"].isel(depth=0).values
+chl[chl <= 0] = np.nan
+
+print("Min:", np.nanmin(chl))
+print("Max:", np.nanmax(chl))
 
 ## Crear figura
 fig = plt.figure(figsize=(8,6))
@@ -233,7 +240,7 @@ vmax = np.nanpercentile(chl, 95)  # valor por encima del 95% se pone al máximo 
 pcm = ax.pcolormesh(
     lon2d_chl, lat2d_chl, chl,
     cmap='jet', shading='auto',
-    vmin=vmin, vmax=vmax,  # aquí ajustas la paleta
+    norm=LogNorm(vmin=vmin, vmax=vmax),
     transform=ccrs.PlateCarree()
 )
 
