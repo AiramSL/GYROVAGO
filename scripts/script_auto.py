@@ -1230,79 +1230,79 @@ print("Figura guardada como CHLsec.png")
 ################# SERIES TEMPORALES
 
 
-import cdsapi
+# import cdsapi
 
-c = cdsapi.Client()
-print("Conectado correctamente")
-
-
-
-c.retrieve(
-    'reanalysis-era5-single-levels-monthly-means',
-    {
-        'product_type': 'monthly_averaged_reanalysis',
-        'variable': '2m_temperature',
-        'year': [str(y) for y in range(1979, 2024)],
-        'month': ['01','02','03','04','05','06','07','08','09','10','11','12'],
-        'time': '00:00',
-        'area': [20, -23, 40, -5],  # rectángulo mínimo alrededor del punto
-        'data_format': 'netcdf'  # usar data_format, no format
-    },
-    'temp_1979_2023_monthly.nc'
-)
+# c = cdsapi.Client()
+# print("Conectado correctamente")
 
 
 
-import xarray as xr
-import matplotlib.pyplot as plt
-import pandas as pd
-from scipy.stats import linregress
+# c.retrieve(
+#     'reanalysis-era5-single-levels-monthly-means',
+#     {
+#         'product_type': 'monthly_averaged_reanalysis',
+#         'variable': '2m_temperature',
+#         'year': [str(y) for y in range(1979, 2024)],
+#         'month': ['01','02','03','04','05','06','07','08','09','10','11','12'],
+#         'time': '00:00',
+#         'area': [20, -23, 40, -5],  # rectángulo mínimo alrededor del punto
+#         'data_format': 'netcdf'  # usar data_format, no format
+#     },
+#     'temp_1979_2023_monthly.nc'
+# )
 
 
-ds = xr.open_dataset('/Users/airamsarmiento/Documents/paginasWEB/GYROVAGO_webpy/data/temp_1979_2023_monthly.nc', engine="h5netcdf")
-# Seleccionar el punto más cercano
 
-print(ds)
+# import xarray as xr
+# import matplotlib.pyplot as plt
+# import pandas as pd
+# from scipy.stats import linregress
 
-# Supongamos que la variable de temperatura es 't2m'
-temp = ds['t2m']
 
-# Seleccionamos el punto
-lon_point = -15.5
-lat_point = 29.167
+# ds = xr.open_dataset('/Users/airamsarmiento/Documents/paginasWEB/GYROVAGO_webpy/data/temp_1979_2023_monthly.nc', engine="h5netcdf")
+# # Seleccionar el punto más cercano
 
-# Calculamos el promedio mensual global (sobre latitud y longitud)
-temp_point = ds['t2m'].sel(latitude=lat_point, longitude=lon_point, method='nearest')
+# print(ds)
 
-# Convertimos a DataFrame y aseguramos que 'time' sea columna
-df = temp_point.to_dataframe().reset_index()  # Esto hace que time sea columna
-print(df.columns)  # Para confirmar nombres
+# # Supongamos que la variable de temperatura es 't2m'
+# temp = ds['t2m']
 
-# Si el nombre de la columna de tiempo no es 'time', renombramos
-if 'time' not in df.columns:
-    # usualmente xarray usa 'index' después de reset_index()
-    df = df.rename(columns={df.columns[0]: 'time'})
+# # Seleccionamos el punto
+# lon_point = -15.5
+# lat_point = 29.167
 
-# Línea de tendencia
-slope, intercept, r_value, p_value, std_err = linregress(np.arange(len(df)), df['t2m'])
-df['trend'] = intercept + slope * np.arange(len(df))
+# # Calculamos el promedio mensual global (sobre latitud y longitud)
+# temp_point = ds['t2m'].sel(latitude=lat_point, longitude=lon_point, method='nearest')
 
-# Gráfico profesional
-plt.figure(figsize=(17,9))
-plt.plot(df['time'], df['t2m'], label='Monthly temperature', color='steelblue', alpha=0.7)
-plt.plot(df['time'], df['trend'], label='Linear trend', color='darkred', linewidth=2)
+# # Convertimos a DataFrame y aseguramos que 'time' sea columna
+# df = temp_point.to_dataframe().reset_index()  # Esto hace que time sea columna
+# print(df.columns)  # Para confirmar nombres
 
-plt.title(f'Monthly temperature at point (lon={lon_point}°, lat={lat_point}°)', fontsize=25)
-plt.xlabel('Year', fontsize=25)
-plt.ylabel('Temperature (°C)', fontsize=25)
+# # Si el nombre de la columna de tiempo no es 'time', renombramos
+# if 'time' not in df.columns:
+#     # usualmente xarray usa 'index' después de reset_index()
+#     df = df.rename(columns={df.columns[0]: 'time'})
 
-# Increase tick label sizes
-plt.tick_params(axis='both', which='major', labelsize=20)
+# # Línea de tendencia
+# slope, intercept, r_value, p_value, std_err = linregress(np.arange(len(df)), df['t2m'])
+# df['trend'] = intercept + slope * np.arange(len(df))
 
-plt.grid(True, linestyle='--', alpha=0.5)
-plt.legend(fontsize=22, loc='upper left')
-plt.tight_layout()
-plt.show()
+# # Gráfico profesional
+# plt.figure(figsize=(17,9))
+# plt.plot(df['time'], df['t2m'], label='Monthly temperature', color='steelblue', alpha=0.7)
+# plt.plot(df['time'], df['trend'], label='Linear trend', color='darkred', linewidth=2)
+
+# plt.title(f'Monthly temperature at point (lon={lon_point}°, lat={lat_point}°)', fontsize=25)
+# plt.xlabel('Year', fontsize=25)
+# plt.ylabel('Temperature (°C)', fontsize=25)
+
+# # Increase tick label sizes
+# plt.tick_params(axis='both', which='major', labelsize=20)
+
+# plt.grid(True, linestyle='--', alpha=0.5)
+# plt.legend(fontsize=22, loc='upper left')
+# plt.tight_layout()
+# plt.show()
 
 
 
