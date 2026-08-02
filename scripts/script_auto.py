@@ -32,7 +32,9 @@ today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
 
 
 img = mpimg.imread("figures/buoy.png")
+
 #img = mpimg.imread("/Users/airamsarmiento/Documents/paginasWEB/GYROVAGO_webpy/figures/buoy.png")
+
 
 # -----------------------------
 # Login Copernicus
